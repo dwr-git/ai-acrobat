@@ -20,11 +20,11 @@
 use std::cell::RefCell;
 use std::sync::mpsc::{Receiver, TryRecvError};
 
+use eframe::wasm_bindgen::JsCast;
+use eframe::wasm_bindgen::prelude::*;
 use pdfcraft_ui_egui::control::{ControlClient, Reply};
 use pdfcraft_ui_egui::{HostDirtyFn, HostSaveFn, Inbox};
 use serde_json::{Value, json};
-use eframe::wasm_bindgen::JsCast;
-use eframe::wasm_bindgen::prelude::*;
 
 /// The most requests the page may have waiting at once (a runaway script can't fill the memory).
 const MAX_WAITING: usize = 256;
@@ -162,11 +162,7 @@ pub fn install() -> Result<(), JsValue> {
         Closure::<dyn Fn(String, JsValue) -> js_sys::Promise>::new(|method: String, params: JsValue| request(&method, from_js(&params)))
             .into_js_value(),
     )?;
-    set(
-        &obj,
-        "command",
-        Closure::<dyn Fn(String) -> js_sys::Promise>::new(|id: String| request("ui.command", json!({ "id": id }))).into_js_value(),
-    )?;
+    set(&obj, "command", Closure::<dyn Fn(String) -> js_sys::Promise>::new(|id: String| request("ui.command", json!({ "id": id }))).into_js_value())?;
     set(&obj, "commands", Closure::<dyn Fn() -> js_sys::Promise>::new(|| request("ui.commands", json!({}))).into_js_value())?;
     set(&obj, "state", Closure::<dyn Fn() -> js_sys::Promise>::new(|| request("ui.state", json!({}))).into_js_value())?;
     set(

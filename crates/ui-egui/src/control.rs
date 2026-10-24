@@ -804,7 +804,9 @@ impl Host for crate::PdfCraftApp {
                 break;
             }
         }
-        Ok(json!({ "name": doc.name, "pages": count, "from": from, "to": to, "text": pages, "truncated": truncated || to < page_param("to").unwrap_or(to) }))
+        Ok(
+            json!({ "name": doc.name, "pages": count, "from": from, "to": to, "text": pages, "truncated": truncated || to < page_param("to").unwrap_or(to) }),
+        )
     }
 
     fn set(&mut self, key: &str, value: &str) -> Reply {
