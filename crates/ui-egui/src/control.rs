@@ -27,6 +27,10 @@
 //! - `ui.drag {from: [x, y], to: [x, y], steps?, modifiers?, button?}`: press, move and release (drawing
 //!   comments, selecting text, moving comments). `ui.state` reports `pages_on_screen` to aim at.
 //! - `ui.type {text}`, `ui.key {key, modifiers?}`: keyboard input to the focused widget / app.
+//! - `ui.text {from?, to?, max_chars?}`: the reading-order text of the active document's pages
+//!   `from`..=`to` (1-based; default the current page), at most 30 pages and `max_chars`
+//!   characters (default 40 000, at most 200 000): `{name, pages, from, to, text: [{page, text}],
+//!   truncated}`. Pages without a text layer (scans) come back empty.
 //! - `ui.command {id}`: run a registry command (as the menu would). `ui.commands` lists them.
 //! - `ui.set {key, value}`: view options (`--page`, `--zoom`, …), plus persistent preferences.
 //!   `select` accepts physical page numbers and ranges such as `1,12,16-18`; blank clears the
@@ -34,7 +38,7 @@
 //!   input leaves the previous selection unchanged. `ui.state.active.selected_pages` reports it.
 //!   `default-mode=all|read|edit|convert|sign` applies to future PDF opens; `mode` overrides it
 //!   for this session without changing the saved preference. `ui.state.default_mode` reports it.
-//!   `theme=light|dark|system` changes the saved theme preference; `ui.state.theme_preference`
+//!   `theme=brand|light|dark|system` changes the saved theme preference; `ui.state.theme_preference`
 //!   reports the choice and `ui.state.theme` reports the resolved light/dark colours.
 //!   `comment-tool-pinned=true|false` remembers the annotation quick bar's pin across restarts;
 //!   `ui.state.comment_tool_pinned` reports the same preference.
@@ -186,6 +190,7 @@ pub(crate) trait Host {
     fn command(&mut self, id: &str) -> Reply;
     fn dock(&mut self, reset: bool, params: &Value) -> Reply;
     fn commands(&self) -> Value;
+    fn text(&self, params: &Value) -> Reply;
     fn set(&mut self, key: &str, value: &str) -> Reply;
     fn open(&mut self, path: &str) -> Reply;
     fn quit(&mut self, ctx: &egui::Context) -> bool;
@@ -286,6 +291,7 @@ impl Control {
                 Ok(Handled::Now(Ok(state)))
             }
             "ui.commands" => Ok(Handled::Now(Ok(host.commands()))),
+            "ui.text" => Ok(Handled::Now(host.text(p))),
             "ui.dock" | "ui.dock.reset" => Ok(Handled::Now(host.dock(method == "ui.dock.reset", p))),
             "ui.command" if str_param("id")? == "ui.dock" => Ok(Handled::Now(host.dock(false, p.get("params").unwrap_or(p)))),
             "ui.command" => Ok(Handled::Now(host.command(str_param("id")?))),
@@ -359,7 +365,7 @@ impl Control {
                 Ok(Handled::Screenshot(region))
             }
             other => Err(format!(
-                "unknown method {other:?} (ui.state, ui.inspect, ui.click, ui.focus, ui.resize, ui.quit, ui.move, ui.drag, ui.type, ui.key, ui.command, ui.commands, ui.set, ui.open, ui.screenshot)"
+                "unknown method {other:?} (ui.state, ui.text, ui.inspect, ui.click, ui.focus, ui.resize, ui.quit, ui.move, ui.drag, ui.type, ui.key, ui.command, ui.commands, ui.set, ui.open, ui.screenshot)"
             )),
         })();
         r.unwrap_or_else(|e| Handled::Now(Err(e)))
@@ -765,6 +771,40 @@ impl Host for crate::PdfCraftApp {
             .collect();
         list.push(json!({"id": "ui.dock", "label": "Arrange Panel", "enabled": true, "params": "action, or operation/panel; move: target/zone/before; float/moveFloating: rect; resizeSplit: path/size; setStackOpen: open; resizeStack: height"}));
         json!({ "commands": list })
+    }
+
+    fn text(&self, p: &Value) -> Reply {
+        const MAX_PAGES: usize = 30;
+        let view = self.active.and_then(|i| self.views.get(i)).ok_or("no document is open")?;
+        let doc = self.session.get(view.id).ok_or("no document is open")?;
+        let count = doc.info.pages.len();
+        if count == 0 {
+            return Ok(json!({ "name": doc.name, "pages": 0, "text": [] }));
+        }
+        let page_param = |k: &str| p.get(k).and_then(Value::as_u64).map(|n| usize::try_from(n).unwrap_or(usize::MAX));
+        let current = view.current.saturating_add(1);
+        let from = page_param("from").unwrap_or(current).clamp(1, count);
+        let to = page_param("to").unwrap_or(from).clamp(from, count).min(from.saturating_add(MAX_PAGES - 1));
+        let max_chars = page_param("max_chars").unwrap_or(40_000).clamp(100, 200_000);
+        let mut exporter = pdfcraft_engine::export::Exporter::new(doc);
+        let mut used = 0usize;
+        let mut truncated = false;
+        let mut pages = Vec::new();
+        for page in from..=to {
+            let text = exporter.text(page - 1).unwrap_or_default();
+            let room = max_chars.saturating_sub(used);
+            let mut text: String = text.trim_end().to_string();
+            if text.chars().count() > room {
+                text = text.chars().take(room).collect();
+                truncated = true;
+            }
+            used += text.chars().count();
+            pages.push(json!({ "page": page, "text": text }));
+            if truncated {
+                break;
+            }
+        }
+        Ok(json!({ "name": doc.name, "pages": count, "from": from, "to": to, "text": pages, "truncated": truncated || to < page_param("to").unwrap_or(to) }))
     }
 
     fn set(&mut self, key: &str, value: &str) -> Reply {

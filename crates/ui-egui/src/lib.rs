@@ -2291,9 +2291,9 @@ impl PdfCraftApp {
             Err(e) => {
                 use pdfcraft_engine::links::BlockedLink;
                 let template = if matches!(e, BlockedLink::MailFile | BlockedLink::MailEncodedWord) {
-                    "{who} in this document tried to open an address PdfCraft won't open: {e}."
+                    "{who} in this document tried to open an address AI-Acrobat won't open: {e}."
                 } else {
-                    "{who} in this document tried to open an address PdfCraft won't open: {e}. Only web (http, https) and email (mailto) links open from documents."
+                    "{who} in this document tried to open an address AI-Acrobat won't open: {e}. Only web (http, https) and email (mailto) links open from documents."
                 };
                 self.notify_fmt(template, &[("who", tl!(origin.noun())), ("e", &e.to_string())]);
             }
@@ -2331,6 +2331,7 @@ impl PdfCraftApp {
 
     pub fn set_theme_preference(&mut self, preference: ThemePreference) {
         self.theme_preference = preference;
+        theme::set_brand(preference == ThemePreference::Brand);
         if let Some(ctx) = self.ctx.clone() {
             self.sync_theme(&ctx);
             theme::apply(&ctx, self.theme);
@@ -2854,7 +2855,8 @@ impl PdfCraftApp {
                     "system" => ThemePreference::System,
                     "light" => ThemePreference::Light,
                     "dark" => ThemePreference::Dark,
-                    _ => return Err("theme must be light, dark, or system".into()),
+                    "brand" => ThemePreference::Brand,
+                    _ => return Err("theme must be brand, light, dark, or system".into()),
                 };
                 self.set_theme_preference(preference);
             }
@@ -3610,7 +3612,7 @@ impl eframe::App for PdfCraftApp {
             .active
             .and_then(|i| crate::canvas::tab_label(self, i))
             .or_else(|| self.combine_showing().then(|| tl!("Combine files").to_owned()))
-            .map_or_else(|| "PdfCraft".to_owned(), |name| format!("{name} — PdfCraft"));
+            .map_or_else(|| "AI-Acrobat".to_owned(), |name| format!("{name} — AI-Acrobat"));
         if title != self.window_title {
             ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
             self.window_title = title;
@@ -3654,7 +3656,8 @@ impl eframe::App for PdfCraftApp {
             }
         }
         let t = theme::Tokens::get(&ctx);
-        egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.pasteboard)).show(ui, |ui| {
+        egui::CentralPanel::default().frame(egui::Frame::NONE).show(ui, |ui| {
+            theme::paint_pasteboard(ui.painter(), ui.max_rect(), &t);
             if self.mode == Mode::Read {
                 match self.active {
                     None if self.combine_showing() => combine_ui::page(self, ui),

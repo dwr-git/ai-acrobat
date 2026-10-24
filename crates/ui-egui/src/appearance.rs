@@ -16,6 +16,7 @@ fn mode_label(preference: ThemePreference) -> &'static str {
         ThemePreference::System => "Use system setting",
         ThemePreference::Light => "Light",
         ThemePreference::Dark => "Dark",
+        ThemePreference::Brand => "Brand",
     }
 }
 
@@ -24,6 +25,7 @@ fn mode_command(preference: ThemePreference) -> &'static str {
         ThemePreference::System => "view.theme.system",
         ThemePreference::Light => "view.theme.light",
         ThemePreference::Dark => "view.theme.dark",
+        ThemePreference::Brand => "view.theme.brand",
     }
 }
 
@@ -120,7 +122,7 @@ pub fn preferences_section(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens)
     ui.horizontal(|ui| {
         ui.label(tl!("Appearance mode"));
         egui::ComboBox::from_id_salt("appearance-mode").selected_text(tl!(mode_label(app.theme_preference))).show_ui(ui, |ui| {
-            for preference in [ThemePreference::System, ThemePreference::Light, ThemePreference::Dark] {
+            for preference in [ThemePreference::Brand, ThemePreference::System, ThemePreference::Light, ThemePreference::Dark] {
                 if ui.selectable_label(app.theme_preference == preference, tl!(mode_label(preference))).clicked() {
                     app.execute(mode_command(preference));
                     ui.close();

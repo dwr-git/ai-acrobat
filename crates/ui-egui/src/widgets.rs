@@ -509,40 +509,34 @@ pub fn progress_notice(app: &PdfCraftApp, ctx: &egui::Context) -> bool {
     cancel
 }
 
-/// The ArtCraft wordmark (Storyteller's brand, docs/brand/; not open source), sized to `height`.
-pub fn artcraft_logo(ui: &mut egui::Ui, height: f32) -> Response {
-    let dark = ui.visuals().dark_mode;
-    let (uri, bytes): (&str, &'static [u8]) = if dark {
-        ("bytes://artcraft-logo-white.svg", include_bytes!("../../../docs/brand/artcraft-logo-white.svg"))
-    } else {
-        ("bytes://artcraft-logo.svg", include_bytes!("../../../docs/brand/artcraft-logo.svg"))
-    };
-    ui.add(egui::Image::from_bytes(uri, bytes).max_height(height).alt_text("ArtCraft"))
+/// AI-Acrobat's mark, drawn in code, `size` points square: the thick rounded frame the AI- apps'
+/// icons share, round a page with a folded corner and three lines of text.
+pub fn app_mark(ui: &mut egui::Ui, size: f32) -> Response {
+    let (rect, response) = ui.allocate_exact_size(vec2(size, size), Sense::hover());
+    paint_app_mark(ui.painter(), rect, Tokens::get(ui.ctx()).text, Tokens::get(ui.ctx()).panel);
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Image, true, "AI-Acrobat"));
+    response
 }
 
-/// The ArtCraft mark (brand blue, works on light and dark), `size` points square.
-pub fn artcraft_mark(ui: &mut egui::Ui, size: f32) -> Response {
-    ui.add(
-        egui::Image::from_bytes("bytes://artcraft-mark.svg", include_bytes!("../../../docs/brand/artcraft-mark.svg"))
-            .fit_to_exact_size(vec2(size, size))
-            .alt_text("ArtCraft"),
-    )
-}
-
-/// Buttons for every community link (`pdfcraft_engine::links`), Discord first and prominent.
-/// Returns the registry command of the one clicked.
-pub fn community_links(ui: &mut egui::Ui) -> Option<&'static str> {
-    let mut clicked = None;
-    ui.horizontal_wrapped(|ui| {
-        ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
-        for (i, l) in pdfcraft_engine::links::LINKS.iter().enumerate() {
-            let resp = if i == 0 { icon_pill(ui, l.icon, tl!("Join our Discord"), true) } else { icon_pill(ui, l.icon, tl!(l.label), false) };
-            if resp.on_hover_text(l.url).clicked() {
-                clicked = Some(l.command);
-            }
-        }
-    });
-    clicked
+/// [`app_mark`]'s drawing, in `ink` on `ground`, fitted to `rect`.
+pub fn paint_app_mark(painter: &egui::Painter, rect: Rect, ink: Color32, ground: Color32) {
+    let s = rect.width().min(rect.height()) / 32.0;
+    if !s.is_finite() || s <= 0.0 {
+        return;
+    }
+    let o = rect.center() - vec2(16.0, 16.0) * s;
+    let pt = |x: f32, y: f32| o + vec2(x, y) * s;
+    let r = |x0: f32, y0: f32, x1: f32, y1: f32| Rect::from_min_max(pt(x0, y0), pt(x1, y1));
+    let round = |v: f32| CornerRadius::same((v * s).round().clamp(0.0, 255.0) as u8);
+    painter.rect_filled(r(2.0, 2.0, 30.0, 30.0), round(5.0), ink);
+    painter.rect_filled(r(6.5, 6.5, 25.5, 25.5), round(1.0), ground);
+    // The page: a sheet with its top-right corner folded over.
+    let page = vec![pt(10.5, 9.0), pt(18.5, 9.0), pt(22.0, 12.5), pt(22.0, 23.5), pt(10.5, 23.5)];
+    painter.add(egui::Shape::convex_polygon(page, ink, Stroke::NONE));
+    painter.add(egui::Shape::convex_polygon(vec![pt(18.5, 9.0), pt(18.5, 12.5), pt(22.0, 12.5)], ground, Stroke::NONE));
+    for (y, x1) in [(15.0, 19.5), (18.0, 19.5), (21.0, 16.5)] {
+        painter.rect_filled(r(13.0, y - 0.6, x1, y + 0.6), CornerRadius::ZERO, ground);
+    }
 }
 
 /// [`icon_pill`] with a ▾ part at its end that opens a menu of related choices. Returns the

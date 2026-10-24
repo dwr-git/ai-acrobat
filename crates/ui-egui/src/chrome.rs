@@ -284,24 +284,22 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                         ThemePreference::System => ("monitor", tl!("Use system setting")),
                         ThemePreference::Light => ("sun", tl!("Light gray")),
                         ThemePreference::Dark => ("moon", tl!("Dark gray")),
+                        ThemePreference::Brand => ("palette", tl!("Brand")),
                     };
                     let tip = format!("{}: {label}", tl!("Display theme"));
                     let response = icons::button(ui, icon, button, false, &tip);
-                    // A click cycles System, Light, Dark; a right-click opens the menu.
+                    // A click cycles System, Light, Dark, Brand; a right-click opens the menu.
                     if response.clicked() {
                         app.execute(match app.theme_preference {
                             ThemePreference::System => "view.theme.light",
                             ThemePreference::Light => "view.theme.dark",
-                            ThemePreference::Dark => "view.theme.system",
+                            ThemePreference::Dark => "view.theme.brand",
+                            ThemePreference::Brand => "view.theme.system",
                         });
                     }
                     egui::Popup::context_menu(&response).id(response.id.with("theme_menu")).show(|ui| appearance_menu(app, ui));
                     if icons::button(ui, "circle-help", button, false, tl!("Keyboard shortcuts")).clicked() {
                         app.dialog = Some(Dialog::Shortcuts);
-                    }
-                    // One click to the community, from anywhere in the app.
-                    if widgets::ghost_button_sized(ui, "messages-square", "Discord", tab_h).on_hover_text(pdfcraft_engine::links::DISCORD).clicked() {
-                        app.execute("help.discord");
                     }
                 });
             });
@@ -311,6 +309,7 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
 /// Both theme entry points use the same choices and command path.
 fn theme_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     for (preference, command, label) in [
+        (ThemePreference::Brand, "view.theme.brand", "Brand"),
         (ThemePreference::System, "view.theme.system", "Use system setting"),
         (ThemePreference::Light, "view.theme.light", "Light gray"),
         (ThemePreference::Dark, "view.theme.dark", "Dark gray"),

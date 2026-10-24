@@ -1,7 +1,12 @@
-//! PdfCraft in the browser. Build: `cd apps/pdfcraft-web && trunk build --release`
-//! (trunk generates the JS loader; no handwritten JS — plan/execution-plan.md §1).
+//! AI-Acrobat in the browser. Build: `cd apps/pdfcraft-web && trunk build --release`
+//! (trunk generates the JS loader). The packaged site (`studio/build/package.sh`) starts it from
+//! compressed parts and puts the assistant panel and the user's server files next to it; the
+//! panel reaches the app through `window.aiacrobat` ([`bridge`]).
 
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
+
+#[cfg(target_arch = "wasm32")]
+mod bridge;
 
 #[cfg(target_arch = "wasm32")]
 fn main() {
@@ -12,7 +17,7 @@ fn main() {
     wasm_bindgen_futures::spawn_local(async move {
         let Some(canvas) = web_sys::window()
             .and_then(|w| w.document())
-            .and_then(|d| d.get_element_by_id("pdfcraft"))
+            .and_then(|d| d.get_element_by_id("pdfcraft_canvas").or_else(|| d.get_element_by_id("pdfcraft")))
             .and_then(|e| e.dyn_into::<web_sys::HtmlCanvasElement>().ok())
         else {
             return;
@@ -24,8 +29,14 @@ fn main() {
                 Box::new(|cc| {
                     let mut app = PdfCraftApp::new();
                     // "printcraft": settings saved under the app's former name, PrintCraft.
-                    if let Some(json) = cc.storage.and_then(|s| s.get_string("pdfcraft").or_else(|| s.get_string("printcraft"))) {
-                        app.restore(&json);
+                    match cc.storage.and_then(|s| s.get_string("pdfcraft").or_else(|| s.get_string("printcraft"))) {
+                        Some(json) => app.restore(&json),
+                        // AI-Acrobat's first start: the Russian interface and the Brand theme
+                        // (both stay changeable in Preferences and the theme menu).
+                        None => {
+                            let _ = app.set_option("language", "ru");
+                            app.set_theme_preference(pdfcraft_ui_egui::theme::ThemePreference::Brand);
+                        }
                     }
                     // `?file=<url>` opens a PDF from a URL (same-origin or CORS-enabled).
                     if let Some(url) = query_param("file") {
@@ -41,7 +52,7 @@ fn main() {
                                     }
                                 }
                                 Err(e) => {
-                                    eframe::web_sys::console::error_1(&format!("PdfCraft: could not fetch {url}: {e}").into());
+                                    eframe::web_sys::console::error_1(&format!("AI-Acrobat: could not fetch {url}: {e}").into());
                                     // Shown in the app too, not only in the console (#173).
                                     if let Ok(mut q) = failed.lock() {
                                         q.push((name, e));
@@ -56,6 +67,19 @@ fn main() {
                     warn_before_unload(app.unsaved_flag.clone());
                     // `?host=parent`: a same-origin page embedding PdfCraft in an iframe (such
                     // as the Nextcloud app) passes files in and takes saves back (`host` below).
+                    // The page's assistant panel and file storage (`window.aiacrobat`): saves go to the
+                    // page, which keeps them in the user's files on the server.
+                    if query_param("host").as_deref() != Some("parent") {
+                        let client = app.attach_control(&cc.egui_ctx);
+                        bridge::connect(client, app.inbox.clone(), cc.egui_ctx.clone());
+                        match bridge::install() {
+                            Ok(()) => {
+                                app.host_save = Some(bridge::save_fn());
+                                app.host_dirty = Some(bridge::dirty_fn());
+                            }
+                            Err(e) => eframe::web_sys::console::error_1(&e),
+                        }
+                    }
                     if query_param("host").as_deref() == Some("parent")
                         && let Some(bridge) = host::Bridge::new()
                     {
@@ -72,13 +96,23 @@ fn main() {
                         bridge.post_ready();
                     } else if query_param("host").as_deref() == Some("parent") {
                         eframe::web_sys::console::warn_1(
-                            &"PdfCraft: ?host=parent needs a framing page on the same origin; saves download instead".into(),
+                            &"AI-Acrobat: ?host=parent needs a framing page on the same origin; saves download instead".into(),
                         );
                     }
                     Ok(Box::new(app))
                 }),
             )
             .await;
+        // The page's loading block (progress, and what went wrong if the start fails).
+        if let Some(loading) = web_sys::window().and_then(|w| w.document()).and_then(|d| d.get_element_by_id("pdfcraft_loading")) {
+            match &started {
+                Ok(()) => loading.remove(),
+                Err(e) => loading.set_inner_html(&format!(
+                    "<p>AI-Acrobat не запустился: {}</p><p>Нужен браузер с WebGL2: свежий Chrome, Edge, Firefox или Safari.</p>",
+                    html_escape(&e.as_string().unwrap_or_else(|| format!("{e:?}")))
+                )),
+            }
+        }
         if let Err(e) = started {
             eframe::web_sys::console::error_1(&e);
             if query_param("host").as_deref() == Some("parent")
@@ -102,6 +136,12 @@ fn warn_before_unload(unsaved: std::sync::Arc<std::sync::atomic::AtomicBool>) {
     if window.add_event_listener_with_callback("beforeunload", handler.as_ref().unchecked_ref()).is_ok() {
         handler.forget();
     }
+}
+
+/// `text` safe inside HTML.
+#[cfg(target_arch = "wasm32")]
+fn html_escape(text: &str) -> String {
+    text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -258,5 +298,5 @@ mod host {
 
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
-    eprintln!("pdfcraft-web targets wasm32: run `trunk serve` or `trunk build --release` in apps/pdfcraft-web");
+    eprintln!("pdfcraft-web (AI-Acrobat) targets wasm32: run `trunk serve` or `trunk build --release` in apps/pdfcraft-web");
 }

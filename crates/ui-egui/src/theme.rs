@@ -21,6 +21,24 @@ pub enum ThemePreference {
     System,
     Light,
     Dark,
+    /// AI-Acrobat's Brand theme: dark navy panels, the brand's blue-violet accent, solid black
+    /// menus and windows with a strong shadow, and the brand backdrop behind the pages. It draws
+    /// as Dark ([`ThemeKind::Dark`]) with [`Tokens::brand`].
+    Brand,
+}
+
+/// Whether the Brand theme is showing: [`apply`] picks [`Tokens::brand`] for the dark colours
+/// while it is on. One app per page (or process), so a process-wide switch is enough.
+static BRAND: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Turn the Brand theme on or off for the next [`apply`].
+pub fn set_brand(on: bool) {
+    BRAND.store(on, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// The Brand theme is showing.
+pub fn brand_on() -> bool {
+    BRAND.load(std::sync::atomic::Ordering::Relaxed)
 }
 
 impl ThemePreference {
@@ -29,7 +47,7 @@ impl ThemePreference {
     pub fn resolve(self, system: Option<bool>, fallback: ThemeKind) -> ThemeKind {
         match self {
             Self::Light => ThemeKind::Light,
-            Self::Dark => ThemeKind::Dark,
+            Self::Dark | Self::Brand => ThemeKind::Dark,
             Self::System => match system {
                 Some(true) => ThemeKind::Dark,
                 Some(false) => ThemeKind::Light,
@@ -119,6 +137,35 @@ impl Tokens {
                 page_shadow: Color32::from_black_alpha(120),
                 radius: 6,
             },
+        }
+    }
+
+    /// The Brand theme's colours: the brand gradient's navy (#0a0a0f → #1a1a2e → #16213e) for the
+    /// chrome and panels, the brand's blue-violet (#667eea) for the accent. Pages stay white.
+    pub fn brand() -> Self {
+        Self {
+            kind: ThemeKind::Dark,
+            titlebar: Color32::from_rgb(0x0C, 0x0D, 0x17),
+            chrome: Color32::from_rgb(0x14, 0x15, 0x24),
+            panel: Color32::from_rgb(0x16, 0x18, 0x2A),
+            pasteboard: BRAND_CANVAS,
+            card: Color32::from_rgb(0x1B, 0x1D, 0x31),
+            border: Color32::from_rgb(0x2A, 0x2D, 0x46),
+            divider: Color32::from_rgb(0x23, 0x26, 0x3C),
+            text: Color32::from_rgb(0xFF, 0xFF, 0xFF),
+            text_muted: Color32::from_rgb(0xB7, 0xBB, 0xD8),
+            text_faint: Color32::from_rgb(0x9A, 0x9F, 0xC2),
+            icon: Color32::from_rgb(0xF3, 0xF4, 0xFF),
+            hover: Color32::from_rgb(0x22, 0x25, 0x3E),
+            pressed: Color32::from_rgb(0x2D, 0x31, 0x52),
+            selected: Color32::from_rgb(0x2A, 0x30, 0x66),
+            accent: Color32::from_rgb(0x66, 0x7E, 0xEA),
+            accent_text: Color32::from_rgb(0xA9, 0xB4, 0xFF),
+            accent_soft: Color32::from_rgb(0x2A, 0x30, 0x66),
+            field: Color32::from_rgb(0x1F, 0x22, 0x38),
+            badge_new: Color32::from_rgb(0x66, 0x7E, 0xEA),
+            page_shadow: Color32::from_black_alpha(160),
+            radius: 6,
         }
     }
 
@@ -434,7 +481,8 @@ pub fn apply(ctx: &egui::Context, kind: ThemeKind) {
     // NSWindow appearance and prevents winit from delivering ThemeChanged.
     // Our saved choice owns the palette; both egui branches receive it below.
     ctx.set_theme(egui::ThemePreference::System);
-    let t = Tokens::for_kind(kind);
+    let brand = kind == ThemeKind::Dark && brand_on();
+    let t = if brand { Tokens::brand() } else { Tokens::for_kind(kind) };
     ctx.data_mut(|d| d.insert_temp(egui::Id::new("pdfcraft-theme"), t));
     let mut v = if t.dark() { Visuals::dark() } else { Visuals::light() };
     v.panel_fill = t.panel;
@@ -450,6 +498,13 @@ pub fn apply(ctx: &egui::Context, kind: ThemeKind) {
     v.menu_corner_radius = CornerRadius::same(8);
     v.window_shadow = egui::Shadow { offset: [0, 8], blur: 28, spread: 0, color: Color32::from_black_alpha(if t.dark() { 110 } else { 38 }) };
     v.popup_shadow = egui::Shadow { offset: [0, 4], blur: 16, spread: 0, color: Color32::from_black_alpha(if t.dark() { 90 } else { 30 }) };
+    if brand {
+        // Brand: menus, popups and windows are solid black blocks with a strong black shadow.
+        v.window_fill = Color32::BLACK;
+        v.window_stroke = Stroke::new(1.0, Color32::from_rgb(0x26, 0x28, 0x3C));
+        v.window_shadow = egui::Shadow { offset: [0, 10], blur: 36, spread: 2, color: Color32::BLACK };
+        v.popup_shadow = egui::Shadow { offset: [0, 8], blur: 32, spread: 0, color: Color32::BLACK };
+    }
     for w in [&mut v.widgets.noninteractive, &mut v.widgets.inactive, &mut v.widgets.hovered, &mut v.widgets.active, &mut v.widgets.open] {
         w.corner_radius = CornerRadius::same(t.radius);
         w.fg_stroke.color = t.text;
@@ -493,6 +548,114 @@ pub fn apply(ctx: &egui::Context, kind: ThemeKind) {
     let style = ctx.global_style();
     ctx.set_style_of(egui::Theme::Light, style.clone());
     ctx.set_style_of(egui::Theme::Dark, style);
+}
+
+/// The colour the Brand backdrop reads as, the document area's colour in the Brand theme.
+pub const BRAND_CANVAS: Color32 = Color32::from_rgb(0x16, 0x18, 0x2C);
+
+/// The Brand theme's canvas backdrop, as the owner's page draws it in CSS: the brand gradient
+/// (#0a0a0f → #1a1a2e → #16213e at 135°), three soft glows (circles at 20% 80%, 80% 20% and 40% 40%,
+/// fading out halfway to the farthest corner), a 30 px grid of 5% white lines, and an inner shadow
+/// (`inset 0 0 35px 10px #00000099`) round the edges.
+pub fn paint_brand_backdrop(painter: &egui::Painter, rect: egui::Rect) {
+    use egui::epaint::{Mesh, Vertex, WHITE_UV};
+    let vertex = |pos: egui::Pos2, color: Color32| Vertex { pos, uv: WHITE_UV, color };
+    let quad = |m: &mut Mesh, corners: [(egui::Pos2, Color32); 4]| {
+        let base = m.vertices.len() as u32;
+        m.vertices.extend(corners.iter().map(|(p, c)| vertex(*p, *c)));
+        m.indices.extend([base, base + 1, base + 2, base, base + 2, base + 3]);
+    };
+    // The gradient: at 135° the top-left corner is the first stop, the bottom-right the last, and
+    // the other two corners sit on the middle stop.
+    let (a, mid, b) = (Color32::from_rgb(0x0A, 0x0A, 0x0F), Color32::from_rgb(0x1A, 0x1A, 0x2E), Color32::from_rgb(0x16, 0x21, 0x3E));
+    let mut m = Mesh::default();
+    quad(&mut m, [(rect.left_top(), a), (rect.right_top(), mid), (rect.right_bottom(), b), (rect.left_bottom(), mid)]);
+    painter.add(egui::Shape::mesh(m));
+    // The glows: a fan from the centre colour out to transparent at half the farthest-corner distance.
+    for (fx, fy, rgb, alpha) in [(0.2_f32, 0.8_f32, (120, 119, 198), 0.30_f32), (0.8, 0.2, (255, 119, 198), 0.30), (0.4, 0.4, (120, 219, 255), 0.20)]
+    {
+        let c = rect.min + egui::vec2(rect.width() * fx, rect.height() * fy);
+        let far = egui::vec2(rect.width() * fx.max(1.0 - fx), rect.height() * fy.max(1.0 - fy)).length();
+        let reach = far * 0.5;
+        let inner = Color32::from_rgba_unmultiplied(rgb.0, rgb.1, rgb.2, (alpha * 255.0) as u8);
+        let mut g = Mesh::default();
+        g.vertices.push(vertex(c, inner));
+        const STEPS: u32 = 64;
+        for i in 0..=STEPS {
+            let angle = std::f32::consts::TAU * i as f32 / STEPS as f32;
+            g.vertices.push(vertex(c + egui::vec2(angle.cos(), angle.sin()) * reach, Color32::TRANSPARENT));
+        }
+        for i in 1..=STEPS {
+            g.indices.extend([0, i, i + 1]);
+        }
+        painter.add(egui::Shape::mesh(g));
+    }
+    // The grid: lines 30 points apart from the top-left corner.
+    let line = Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 13));
+    let mut x = rect.left() + 0.5;
+    while x < rect.right() {
+        painter.vline(x, rect.y_range(), line);
+        x += 30.0;
+    }
+    let mut y = rect.top() + 0.5;
+    while y < rect.bottom() {
+        painter.hline(rect.x_range(), y, line);
+        y += 30.0;
+    }
+    // The inner shadow: solid for the 10 px spread, then fading over the 35 px blur.
+    let dark = |a: f32| Color32::from_rgba_unmultiplied(0, 0, 0, (a * 153.0) as u8);
+    let mut sh = Mesh::default();
+    for (from, to, a0, a1) in [(0.0_f32, 10.0_f32, 1.0_f32, 0.75_f32), (10.0, 45.0, 0.75, 0.0)] {
+        let (r, i0, i1) = (rect, from, to);
+        // top, bottom, left, right bands
+        quad(
+            &mut sh,
+            [
+                (egui::pos2(r.left(), r.top() + i0), dark(a0)),
+                (egui::pos2(r.right(), r.top() + i0), dark(a0)),
+                (egui::pos2(r.right(), r.top() + i1), dark(a1)),
+                (egui::pos2(r.left(), r.top() + i1), dark(a1)),
+            ],
+        );
+        quad(
+            &mut sh,
+            [
+                (egui::pos2(r.left(), r.bottom() - i1), dark(a1)),
+                (egui::pos2(r.right(), r.bottom() - i1), dark(a1)),
+                (egui::pos2(r.right(), r.bottom() - i0), dark(a0)),
+                (egui::pos2(r.left(), r.bottom() - i0), dark(a0)),
+            ],
+        );
+        quad(
+            &mut sh,
+            [
+                (egui::pos2(r.left() + i0, r.top()), dark(a0)),
+                (egui::pos2(r.left() + i1, r.top()), dark(a1)),
+                (egui::pos2(r.left() + i1, r.bottom()), dark(a1)),
+                (egui::pos2(r.left() + i0, r.bottom()), dark(a0)),
+            ],
+        );
+        quad(
+            &mut sh,
+            [
+                (egui::pos2(r.right() - i1, r.top()), dark(a1)),
+                (egui::pos2(r.right() - i0, r.top()), dark(a0)),
+                (egui::pos2(r.right() - i0, r.bottom()), dark(a0)),
+                (egui::pos2(r.right() - i1, r.bottom()), dark(a1)),
+            ],
+        );
+    }
+    painter.add(egui::Shape::mesh(sh));
+}
+
+/// The document area behind the pages: the brand backdrop in the Brand theme, else
+/// [`Tokens::pasteboard`].
+pub fn paint_pasteboard(painter: &egui::Painter, rect: Rect, t: &Tokens) {
+    if t.kind == ThemeKind::Dark && t.pasteboard == BRAND_CANVAS && brand_on() {
+        paint_brand_backdrop(painter, rect);
+    } else {
+        painter.rect_filled(rect, 0.0, t.pasteboard);
+    }
 }
 
 /// WCAG 2 contrast ratio between two opaque colours.
