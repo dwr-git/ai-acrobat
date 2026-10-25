@@ -3140,6 +3140,8 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
     let allowed = doc.allows_annotation();
     let can_copy = doc.allows_copying();
     let mut copy_selected = false;
+    let ai_wanted = app.host_ai.is_some();
+    let mut ai_request: Option<(Pos2, String)> = None;
     let comments_hidden = doc.comments_hidden();
     let form = doc.form.clone();
     let generation = doc.edit_generation();
@@ -4166,7 +4168,7 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
     view.viewport_screen = out.inner_rect;
     view.auto_scroll.paint(ui, avail);
     if unobstructed && matches!(tool, QuickTool::Select | QuickTool::ColumnSelect) {
-        copy_selected |= selection_actions(ui, avail, view, info, prefs, allowed && !comments_hidden, can_copy);
+        copy_selected |= selection_actions(ui, avail, view, info, prefs, allowed && !comments_hidden, can_copy, ai_wanted.then_some(&mut ai_request));
     }
 
     // Collect all main-page demand, including cached surfaces, for byte admission later.
@@ -4528,6 +4530,11 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
     if copy_selected {
         app.execute("edit.copy");
     }
+    if let Some((at, text)) = ai_request
+        && let Some(open) = app.host_ai.as_ref()
+    {
+        open(at.x, at.y, &text);
+    }
     // Read mode hides the tools (#2646), and full screen is the page and nothing else (#1459);
     // the quick tools come back with the window.
     if app.mode != crate::Mode::Read && !app.full_screen {
@@ -4540,6 +4547,8 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
 
 #[derive(Clone, Copy)]
 enum SelectionAction {
+    /// AI-Acrobat on the web: the page's AI menu for the selected words.
+    Ai,
     Note,
     Markup(comments::CommentTool),
     Replace,
@@ -4547,6 +4556,7 @@ enum SelectionAction {
 }
 
 /// Actions on an existing text selection, next to the selected words.
+#[allow(clippy::too_many_arguments)]
 fn selection_actions(
     ui: &mut egui::Ui,
     viewport: Rect,
@@ -4555,6 +4565,7 @@ fn selection_actions(
     prefs: &comments::CommentPrefs,
     can_comment: bool,
     can_copy: bool,
+    ai: Option<&mut Option<(Pos2, String)>>,
 ) -> bool {
     if ui.input(|input| input.pointer.is_decidedly_dragging()) {
         return false;
@@ -4577,12 +4588,22 @@ fn selection_actions(
     if !viewport.intersects(rect) {
         return false;
     }
+    let ai_on = ai.is_some();
     let x = rect.left().clamp(viewport.left() + 8.0, (viewport.right() - 520.0).max(viewport.left() + 8.0));
     let y = if rect.bottom() + 48.0 < viewport.bottom() { rect.bottom() + 6.0 } else { (rect.top() - 44.0).max(viewport.top() + 6.0) };
     let mut chosen = None;
     egui::Area::new(egui::Id::new(("text-selection-actions", view.id.0))).order(egui::Order::Foreground).fixed_pos(pos2(x, y)).show(ui.ctx(), |ui| {
         egui::Frame::popup(ui.style()).show(ui, |ui| {
             ui.horizontal(|ui| {
+                if ai_on {
+                    let t = crate::theme::Tokens::get(ui.ctx());
+                    let label = egui::RichText::new(tl!("AI")).strong().color(egui::Color32::WHITE);
+                    let button = egui::Button::new(label).fill(t.accent).corner_radius(f32::from(t.radius) + 4.0);
+                    if ui.add(button).on_hover_text(tl!("AI Assistant: explain, translate, summarise")).clicked() {
+                        chosen = Some(SelectionAction::Ai);
+                    }
+                    ui.separator();
+                }
                 for (label, action) in [
                     (tl!("Add comment"), SelectionAction::Note),
                     (tl!("Highlight"), SelectionAction::Markup(comments::CommentTool::Highlight)),
@@ -4601,6 +4622,14 @@ fn selection_actions(
         });
     });
     let Some(action) = chosen else { return false };
+    if let SelectionAction::Ai = action {
+        // The menu opens under the bar; the words stay selected for Copy or a second request.
+        if let Some(slot) = ai {
+            *slot = Some((pos2(x, y + 40.0), selected));
+        }
+        view.actions_dismissed = Some(selection);
+        return false;
+    }
     if let SelectionAction::Copy = action {
         // Copying closes the bar but keeps the words selected, for ⌘C or a second action.
         view.actions_dismissed = Some(selection);
@@ -4634,8 +4663,8 @@ fn selection_actions(
                 author: prefs.author.clone(),
             }));
         }
-        // Copy is dispatched through the app after the view borrow ends.
-        SelectionAction::Copy => {}
+        // Copy is dispatched through the app after the view borrow ends; AI returned above.
+        SelectionAction::Copy | SelectionAction::Ai => {}
     }
     false
 }

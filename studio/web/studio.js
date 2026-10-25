@@ -1084,6 +1084,216 @@
     return { start, show };
   })();
 
+  // ------------------------------------------------------------------ ИИ у выделения
+  // Кнопка «ИИ» на панели над выделенными словами PDF присылает aiacrobat:ai {x, y, text};
+  // Ctrl+Alt+Пробел открывает то же меню для всего документа. Модель видит текст документа
+  // (большой — частями, см. api/context.php). PDF не меняется: ответ можно скопировать.
+  const AI_MENU = [
+    ['Понять', [['explain', 'Объяснить'], ['summarize', 'Краткое содержание'], ['tldr', 'Суть в двух словах'], ['key_points', 'Ключевые тезисы'], ['atomic_meaning', 'Главный смысл'], ['questions', 'Вопросы по тексту']]],
+    ['Перевод', [['translate_ru', 'На русский'], ['translate_en', 'На английский'], ['translate_be', 'На белорусский'], ['translate_de', 'На немецкий'], ['translate_fr', 'На французский'], ['translate_es', 'На испанский'], ['translate_zh', 'На китайский']]],
+    ['Проверка', [['check_facts', 'Что проверить'], ['check_logic', 'Логика'], ['check_spelling', 'Орфография и пунктуация'], ['check_style', 'Стилистика']]],
+    ['Переписать', [['simplify', 'Простыми словами'], ['rephrase', 'Переформулировать'], ['formalize', 'Официально-деловой'], ['shorten', 'Сократить']]],
+    ['Структура', [['to_list', 'В список'], ['to_table', 'В таблицу'], ['steps', 'По шагам']]],
+  ];
+  const AI_LABEL = Object.fromEntries(AI_MENU.flatMap((g) => g[1]));
+
+  // Markdown модели → простой HTML: абзацы, подзаголовки, списки, таблицы, полужирный и курсив.
+  function mdToHtml(md) {
+    const inline = (s) => esc(s)
+      .replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>')
+      .replace(/(^|[\s(«])\*([^*\s][^*\n]*?)\*(?=[\s.,;:!?)»]|$)/g, '$1<i>$2</i>')
+      .replace(/`([^`\n]+)`/g, '$1');
+    const out = [];
+    let list = null;
+    let rows = null;
+    const close = () => {
+      if (list) { out.push(`<${list.tag}>${list.items.map((i) => `<li>${inline(i)}</li>`).join('')}</${list.tag}>`); list = null; }
+      if (rows) {
+        const [head, ...body] = rows;
+        const cells = (r, t) => r.map((c) => `<${t}>${inline(c)}</${t}>`).join('');
+        out.push(`<table border="1" style="border-collapse:collapse"><thead><tr>${cells(head, 'th')}</tr></thead><tbody>${body.map((r) => `<tr>${cells(r, 'td')}</tr>`).join('')}</tbody></table>`);
+        rows = null;
+      }
+    };
+    for (const raw of String(md).replace(/\r/g, '').split('\n')) {
+      const line = raw.trimEnd();
+      let m;
+      if (/^\s*\|.*\|\s*$/.test(line)) {
+        if (list) close();
+        if (/^\s*\|?[\s:|-]+\|?\s*$/.test(line) && line.includes('-')) continue; // строка-разделитель
+        rows = rows || [];
+        rows.push(line.trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim()));
+      } else if ((m = line.match(/^\s*[-*•–]\s+(.*)$/))) {
+        if (rows || (list && list.tag !== 'ul')) close();
+        list = list || { tag: 'ul', items: [] };
+        list.items.push(m[1]);
+      } else if ((m = line.match(/^\s*\d+[.)]\s+(.*)$/))) {
+        if (rows || (list && list.tag !== 'ol')) close();
+        list = list || { tag: 'ol', items: [] };
+        list.items.push(m[1]);
+      } else if ((m = line.match(/^(#{1,6})\s+(.*)$/))) {
+        close();
+        const level = Math.min(4, Math.max(2, m[1].length));
+        out.push(`<h${level}>${inline(m[2].replace(/#+\s*$/, ''))}</h${level}>`);
+      } else if (!line.trim()) {
+        close();
+      } else {
+        close();
+        out.push(`<p>${inline(line.trim())}</p>`);
+      }
+    }
+    close();
+    return out.join('');
+  }
+  const mdPlain = (md) => String(md).replace(/\*\*([^*\n]+)\*\*/g, '$1').replace(/^#{1,6}\s+/gm, '').trim();
+  const mdStructured = (md) => /^\s*([-*•–]\s|\d+[.)]\s|#{1,6}\s|\|)/m.test(md);
+
+  const ai = { pop: null, text: '', op: null, custom: '', result: '', abort: null, anchor: null };
+  function aiClose() {
+    if (ai.abort) ai.abort.abort();
+    ai.abort = null;
+    ai.pop?.remove();
+    ai.pop = null;
+  }
+  function aiPlace(x, y) {
+    const pop = ai.pop;
+    const w = pop.offsetWidth; const h = pop.offsetHeight;
+    pop.style.left = Math.max(8, Math.min(x, window.innerWidth - w - 8)) + 'px';
+    pop.style.top = (y + h + 8 <= window.innerHeight ? y : Math.max(8, Math.min(y - h - 12, window.innerHeight - h - 8))) + 'px';
+  }
+  function plural(n, one, few, many) {
+    const d = n % 10; const h = n % 100;
+    return d === 1 && h !== 11 ? one : d >= 2 && d <= 4 && (h < 12 || h > 14) ? few : many;
+  }
+  function aiOpen(x, y, selected) {
+    aiClose();
+    ai.text = String(selected || '').trim();
+    const words = ai.text ? ai.text.split(/\s+/).length : 0;
+    const pop = document.createElement('div');
+    pop.className = 'st-ai-pop';
+    pop.setAttribute('role', 'dialog');
+    pop.setAttribute('aria-label', 'ИИ-помощник');
+    pop.innerHTML = `
+      <div class="st-ai-head">
+        <span class="st-ai-mark">${ICON.spark}</span>
+        <input class="st-ai-input" type="text" placeholder="${ai.text ? 'Что сделать с выделенным?' : 'Что сделать с документом?'}" aria-label="Свой запрос или поиск по меню" autocomplete="off">
+        <button class="st-ai-x" title="Закрыть (Esc)" aria-label="Закрыть">${ICON.x}</button>
+      </div>
+      <div class="st-ai-scope">${ai.text ? `Выделено: <b>${esc(ai.text.length > 70 ? ai.text.slice(0, 70) + '…' : ai.text)}</b> · ${words} ${plural(words, 'слово', 'слова', 'слов')}` : 'Ничего не выделено — работаю с документом целиком'}</div>
+      <div class="st-ai-body"></div>
+      <div class="st-ai-foot">Enter — свой запрос · Esc — закрыть · Ctrl+Alt+Пробел — по всему документу</div>`;
+    root.appendChild(pop);
+    ai.pop = pop;
+    const input = pop.querySelector('.st-ai-input');
+    pop.querySelector('.st-ai-x').onclick = aiClose;
+    input.addEventListener('input', () => aiMenu(input.value));
+    input.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Escape') { e.preventDefault(); aiClose(); }
+      if (e.key === 'Enter' && input.value.trim()) { e.preventDefault(); aiRun('custom', input.value.trim()); }
+      if (e.key === 'ArrowDown') { e.preventDefault(); pop.querySelector('.st-ai-item')?.focus(); }
+    });
+    pop.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); aiClose(); }
+      const items = [...pop.querySelectorAll('.st-ai-item')];
+      const i = items.indexOf(document.activeElement);
+      if (i >= 0 && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+        e.preventDefault(); e.stopPropagation();
+        (items[i + (e.key === 'ArrowDown' ? 1 : -1)] || (e.key === 'ArrowUp' ? input : items[i])).focus();
+      }
+    });
+    ai.anchor = [x, y];
+    aiMenu('');
+    input.focus();
+  }
+  function aiMenu(query) {
+    const body = ai.pop?.querySelector('.st-ai-body');
+    if (!body) return;
+    ai.pop.querySelector('.st-ai-foot').hidden = false;
+    const q = query.trim().toLowerCase();
+    const groups = AI_MENU.map(([g, items]) => [g, items.filter(([, label]) => !q || label.toLowerCase().includes(q) || g.toLowerCase().includes(q))]).filter((g) => g[1].length);
+    body.innerHTML = groups.length
+      ? groups.map(([g, items]) => `<div class="st-ai-group"><div class="st-ai-gt">${esc(g)}</div><div class="st-ai-items">${items.map(([id, label]) => `<button class="st-ai-item" data-op="${id}">${esc(label)}</button>`).join('')}</div></div>`).join('')
+      : `<button class="st-ai-item st-ai-custom" data-op="custom">${ICON.send}<span>Выполнить: «${esc(query.trim())}»</span></button>`;
+    body.querySelectorAll('.st-ai-item').forEach((b) => {
+      b.onclick = () => (b.dataset.op === 'custom' ? aiRun('custom', query.trim()) : aiRun(b.dataset.op, ''));
+    });
+    aiPlace(...ai.anchor);
+  }
+  async function aiDocText() {
+    try {
+      const r = await PC.call('ui.text', { from: 1, to: 30, max_chars: 200000 });
+      return (r.text || []).map((p) => p.text || '').join('\n\n');
+    } catch { return ''; }
+  }
+  async function aiRun(op, custom) {
+    if (!ai.pop) return;
+    ai.op = op; ai.custom = custom;
+    const body = ai.pop.querySelector('.st-ai-body');
+    const title = op === 'custom' ? custom : (AI_LABEL[op] || op);
+    body.innerHTML = `<div class="st-ai-res"><div class="st-ai-rt">${esc(title)}</div><div class="st-ai-wait"><div class="st-typing"><i></i><i></i><i></i></div><span>Читаю и думаю…</span><button class="st-mini" data-a="stop">Отменить</button></div></div>`;
+    ai.pop.querySelector('.st-ai-foot').hidden = true;
+    body.querySelector('[data-a="stop"]').onclick = () => { ai.abort?.abort(); aiMenu(ai.pop.querySelector('.st-ai-input').value); };
+    aiPlace(...ai.anchor);
+    const doc = await aiDocText();
+    ai.abort = new AbortController();
+    const payload = { mode: 'text', op: op === 'custom' ? '' : op, custom: op === 'custom' ? custom : '', selection: ai.text, document: doc };
+    let j;
+    try {
+      const r = await fetch(CFG.api, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: ai.abort.signal });
+      j = await readAnswer(r);
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+      j = { ok: false, error: e.message };
+    }
+    ai.abort = null;
+    if (!ai.pop) return;
+    if (!j || !j.ok) {
+      body.innerHTML = `<div class="st-ai-res"><div class="st-ai-rt">${esc(title)}</div><p class="st-ai-err">${esc((j && j.error) || 'Модель не ответила.')}</p><div class="st-ai-acts"><button class="st-mini" data-a="back">Назад</button><button class="st-mini" data-a="again">Ещё раз</button></div></div>`;
+    } else {
+      ai.result = String(j.message?.content || '').trim();
+      const ctxNote = j.context === 'windowed' ? 'документ большой: учтены начало, оглавление и текст вокруг' : 'учтён весь документ';
+      body.innerHTML = `<div class="st-ai-res">
+        <div class="st-ai-rt">${esc(title)}<small>${esc(ctxNote)}</small></div>
+        <div class="st-ai-out">${mdToHtml(ai.result) || '<p>(пустой ответ)</p>'}</div>
+        <div class="st-ai-acts">
+          <button class="st-mini primary" data-a="copy">Копировать</button>
+          <button class="st-mini" data-a="again" title="Другой вариант">Ещё вариант</button>
+          <button class="st-mini" data-a="back">Назад</button>
+        </div></div>`;
+    }
+    body.querySelectorAll('[data-a]').forEach((b) => { b.onclick = () => aiAction(b.dataset.a); });
+    aiPlace(...ai.anchor);
+    body.querySelector('.primary, [data-a="again"]')?.focus();
+  }
+  async function aiAction(a) {
+    if (a === 'back') { aiMenu(ai.pop.querySelector('.st-ai-input').value); return; }
+    if (a === 'again') { aiRun(ai.op, ai.custom); return; }
+    if (a === 'copy') {
+      const text = mdPlain(ai.result);
+      try { await navigator.clipboard.writeText(text); } catch {
+        const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select();
+        try { document.execCommand('copy'); } catch { /* нет доступа к буферу */ }
+        t.remove();
+      }
+      toast('Скопировано');
+    }
+  }
+  window.addEventListener('aiacrobat:ai', (e) => {
+    const c = document.getElementById('pdfcraft_canvas');
+    const r = c ? c.getBoundingClientRect() : { left: 0, top: 0 };
+    const d = e.detail || {};
+    aiOpen(r.left + (Number(d.x) || 0), r.top + (Number(d.y) || 0), d.text || '');
+  });
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && e.altKey && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      aiOpen(Math.round(window.innerWidth / 2 - 200), 120, '');
+    }
+  }, true);
+  document.addEventListener('pointerdown', (e) => { if (ai.pop && !ai.pop.contains(e.target) && !ai.abort) aiClose(); }, true);
+
   // ------------------------------------------------------------------ тема
   const panelThemeOf = (themeId) => (themeId === 'brand' ? 'brand' : (isDarkTheme(themeId) ? 'dark' : 'light'));
   function applyPanelTheme(themeId) {

@@ -23,7 +23,7 @@ use std::sync::mpsc::{Receiver, TryRecvError};
 use eframe::wasm_bindgen::JsCast;
 use eframe::wasm_bindgen::prelude::*;
 use pdfcraft_ui_egui::control::{ControlClient, Reply};
-use pdfcraft_ui_egui::{HostDirtyFn, HostSaveFn, Inbox};
+use pdfcraft_ui_egui::{HostAiFn, HostDirtyFn, HostSaveFn, Inbox};
 use serde_json::{Value, json};
 
 /// The most requests the page may have waiting at once (a runaway script can't fill the memory).
@@ -143,6 +143,15 @@ pub fn save_fn() -> HostSaveFn {
 }
 
 /// Whether any tab has unsaved work, reported to the page when it changes.
+/// The AI button over selected words asks the page for its AI menu: `aiacrobat:ai` with
+/// `detail: {x, y, text}` (CSS pixels from the canvas's top left, the selected words).
+pub fn ai_fn() -> HostAiFn {
+    Box::new(|x: f32, y: f32, text: &str| {
+        let text: String = text.chars().take(60_000).collect();
+        let _ = notify("ai", &to_js(&json!({ "x": x, "y": y, "text": text })));
+    })
+}
+
 pub fn dirty_fn() -> HostDirtyFn {
     let mut last = false;
     Box::new(move |dirty: bool| {

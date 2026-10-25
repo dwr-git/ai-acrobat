@@ -3,6 +3,8 @@
 //
 //   GET  assistant.php            проверка: вошёл ли пользователь, какая модель, доступна ли она
 //   POST assistant.php            {mode: "advice"|"act", messages: [...]} → {ok, message: {content, tool_calls}}
+//   POST assistant.php            {mode: "text", op | custom, selection, document} → {ok, message: {content}}
+//                                 (ИИ у выделения: «Улучшить», «Перевести», «Проверить»… — см. context.php)
 //
 // Инструменты (find_commands, run_command…) выполняет браузер: только он видит
 // запущенный редактор. Здесь — авторизация, системная инструкция, список
@@ -93,10 +95,14 @@ if ($raw === false || strlen($raw) > $STUDIO['max_body_bytes']) {
     studio_fail(413, 'Слишком большой запрос.');
 }
 $in = json_decode($raw, true, 64);
-if (!is_array($in) || !isset($in['messages']) || !is_array($in['messages'])) {
+$mode = match ($in['mode'] ?? '') {
+    'act' => 'act',
+    'text' => 'text',
+    default => 'advice',
+};
+if (!is_array($in) || ($mode !== 'text' && (!isset($in['messages']) || !is_array($in['messages'])))) {
     studio_fail(400, 'Неверный формат запроса: нужен JSON {mode, messages}.');
 }
-$mode = ($in['mode'] ?? '') === 'act' ? 'act' : 'advice';
 
 /** Оставляет в сообщениях только то, что понимает Ollama, и проверяет размеры. */
 function studio_clean_messages(array $messages, array $limits): array
@@ -183,10 +189,15 @@ function studio_clean_messages(array $messages, array $limits): array
     return $out;
 }
 
-$messages = studio_clean_messages($in['messages'], $STUDIO);
+$contextMode = null;
+if ($mode === 'text') {
+    require_once __DIR__ . '/context.php';
+    [$textSystem, $textMessages, $contextMode] = studio_context_request($in);
+}
+$messages = $mode === 'text' ? $textMessages : studio_clean_messages($in['messages'], $STUDIO);
 // Шлюз без поддержки инструментов (вызовы приходят текстом): историю вызовов и их результатов
 // тоже передаём текстом, в том же виде, в каком модель их пишет.
-$textTools = !empty($in['textTools']);
+$textTools = $mode !== 'text' && !empty($in['textTools']);
 if ($textTools) {
     foreach ($messages as &$m) {
         if ($m['role'] === 'assistant' && !empty($m['tool_calls'])) {
@@ -204,11 +215,11 @@ if ($textTools) {
     }
     unset($m);
 }
-$tools = studio_read_tools();
+$tools = $mode === 'text' ? [] : studio_read_tools();
 if ($mode === 'act') {
     $tools = array_merge($tools, studio_act_tools());
 }
-$system = studio_system_prompt($mode);
+$system = $mode === 'text' ? $textSystem : studio_system_prompt($mode);
 
 $payload = [
     'model' => $model,
@@ -216,14 +227,27 @@ $payload = [
     'stream' => false,
     'think' => false,
     'options' => [
-        'temperature' => 0.2,
+        'temperature' => $mode === 'text' ? 0.4 : 0.2,
         'num_predict' => max(256, $STUDIO['max_tokens']),
         'num_ctx' => max(4096, $ctx),
     ],
 ];
-$payload['tools'] = $tools;
+if ($tools) {
+    $payload['tools'] = $tools;
+}
 if (function_exists('enrichLLMPayload')) {
     enrichLLMPayload($payload, 'ai-acrobat'); // трекинг на шлюзе, как у остальных приложений
+}
+// ИИ-талеры кабинета (если он есть рядом): цена операции и остаток, как в контекстном редакторе.
+$__dwt = studio_env('AI_ACROBAT_TALERS_FILE') ?: dirname(__DIR__, 2) . '/cabinet/talers.php';
+if ($mode === 'text' && is_file($__dwt)) {
+    require_once $__dwt;
+    if (function_exists('dwt_begin')) {
+        dwt_begin('ai-acrobat');
+        if (function_exists('dwt_denied') && ($denied = dwt_denied())) {
+            studio_fail(402, (string)$denied, function_exists('dwt_fields') ? dwt_fields() : []);
+        }
+    }
 }
 
 // ---------------------------------------------------------------- запрос к модели
@@ -279,6 +303,9 @@ if ($body === null || $body === false || $curlError !== '') {
     studio_fail(502, 'Модель недоступна: ' . $curlError);
 }
 $res = json_decode((string)$body, true);
+if (is_array($res) && function_exists('dwt_refused')) {
+    dwt_refused($res);
+}
 if (!is_array($res)) {
     studio_fail(502, 'Модель вернула непонятный ответ (HTTP ' . $http . ').');
 }
@@ -313,7 +340,7 @@ foreach (($msg['tool_calls'] ?? []) as $c) {
 // Шлюз мог вернуть вызовы инструментов текстом (Qwen XML или JSON в <tool_call>) — разбираем сами.
 $content = (string)($msg['content'] ?? '');
 $textCalls = [];
-if ($mode !== 'suggest') {
+if ($mode !== 'text') {
     [$textCalls, $content] = studio_text_tool_calls($content);
     if (!$calls) {
         $calls = $textCalls;
@@ -338,4 +365,5 @@ echo json_encode([
         'completion_tokens' => (int)($res['eval_count'] ?? 0),
     ],
     'seconds' => round(microtime(true) - $started, 2),
-], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    'context' => $contextMode,
+] + (function_exists('dwt_fields') ? dwt_fields() : []), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

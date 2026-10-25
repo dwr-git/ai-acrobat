@@ -137,8 +137,8 @@
 	Single page	Одна страница
 	Show cover page in two-page view	Показывать титульную страницу в двухстраничном виде
 	Use system setting	Использовать системные настройки
-	Light gray	Светло-серый
-	Dark gray	Тёмно-серый
+	Light gray	Светлая
+	Dark gray	Тёмная
 	Brand	Фирменная
 	Comments	Комментарии
 	Bookmarks	Закладки
@@ -2446,3 +2446,6 @@ animation effects	Off	Выкл
 # Date picker: Today button (#4274) (AI-assisted, not separately native-reviewed)
 	Today	Сегодня
 	Based on PdfCraft by the ArtCraft team (MIT OR Apache-2.0).	Основано на PdfCraft от команды ArtCraft (MIT OR Apache-2.0).
+	AI	ИИ
+	AI Assistant: explain, translate, summarise	ИИ-помощник: объяснить, перевести, пересказать
+	To the site	На сайт

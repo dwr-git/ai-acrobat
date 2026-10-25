@@ -545,6 +545,13 @@ pub type OsEventsFn = Box<dyn FnMut() -> Vec<OsEvent>>;
 /// for saves; without it the browser downloads the file.
 pub type HostSaveFn = Box<dyn Fn(&str, &[u8], bool) -> Result<(), String>>;
 
+/// Leaves the editor for the site the web page lives on (AI-Acrobat's house at the top right).
+pub type HostHomeFn = Box<dyn Fn()>;
+
+/// Opens the web page's AI menu for the selected words at this point of the canvas (AI-Acrobat):
+/// (x, y, the selected text).
+pub type HostAiFn = Box<dyn Fn(f32, f32, &str)>;
+
 /// Told every frame whether any tab has unsaved work, so a host page can warn before leaving.
 pub type HostDirtyFn = Box<dyn FnMut(bool)>;
 
@@ -773,6 +780,10 @@ pub struct PdfCraftApp {
     pub host_save: Option<HostSaveFn>,
     /// Reports unsaved work to the embedding page (web, see [`HostDirtyFn`]).
     pub host_dirty: Option<HostDirtyFn>,
+    /// The web page's way back to its site: a house at the right end of the tab strip when set.
+    pub host_home: Option<HostHomeFn>,
+    /// The web page's AI menu: an AI button on the bar over selected words when set.
+    pub host_ai: Option<HostAiFn>,
     /// A pending "save changes?" question (closing a dirty tab or quitting).
     pub close_request: Option<CloseRequest>,
     /// The button of the "save changes?" question the keyboard has chosen; Save when it opens.
@@ -1164,6 +1175,8 @@ impl PdfCraftApp {
             os_events: None,
             host_save: None,
             host_dirty: None,
+            host_home: None,
+            host_ai: None,
             close_request: None,
             save_prompt_button: Default::default(),
             save_prompt_seen: false,

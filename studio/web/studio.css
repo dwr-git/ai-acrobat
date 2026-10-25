@@ -77,7 +77,7 @@ html.studio-brand, html.studio-brand body, #studio-root[data-theme="brand"] .st-
 }
 #studio-root[data-theme="brand"] .st-panel { border-left: 1px solid rgba(255, 255, 255, 0.08); }
 /* стеклянные блоки */
-#studio-root[data-theme="brand"] :is(.st-raised, .st-raised-sm, .st-icon-btn, .st-chip, .st-mini, .st-seg button[aria-pressed="true"], .st-toast, .st-drop span, .st-pressed, .st-act, .st-msg.user) {
+#studio-root[data-theme="brand"] :is(.st-raised, .st-raised-sm, .st-icon-btn, .st-chip, .st-mini, .st-seg button[aria-pressed="true"], .st-drop span, .st-pressed, .st-act, .st-msg.user) {
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: none;
@@ -93,7 +93,7 @@ html.studio-brand, html.studio-brand body, #studio-root[data-theme="brand"] .st-
   box-shadow: rgba(102, 126, 234, 0.35) 0 4px 16px;
 }
 /* резко чёрные блоки с тенью: сплошная заливка #000, без примеси белого */
-#studio-root[data-theme="brand"] :is(.st-msg.bot, .st-msg.err, .st-msg.note, .st-confirm, .st-fab, .st-typing, .st-logo, .st-hints, .st-bar-answer) {
+#studio-root[data-theme="brand"] :is(.st-msg.bot, .st-msg.err, .st-msg.note, .st-toast, .st-confirm, .st-fab, .st-typing, .st-logo, .st-hints, .st-bar-answer) {
   background: #000;
   border: 0;
   box-shadow: rgb(0 0 0) 0px 8px 32px;
@@ -502,3 +502,60 @@ body.studio-open .st-bar { left: calc((100% - var(--st-w)) / 2); width: min(640p
 #studio-root[data-theme="brand"] .st-gtabs button[aria-selected="true"] { background: rgba(255, 255, 255, .14); }
 #studio-root[data-theme="brand"] :is(.st-tpl, .st-task) { background: rgba(255, 255, 255, .04); border-color: rgba(255, 255, 255, .1); }
 @media (max-width: 700px) { .st-gcats { display: none; } .st-gbody { padding-left: 12px; } }
+
+/* ---------------------------------------------------------------- ИИ у выделения */
+.st-ai-pop {
+  position: fixed; z-index: 60; width: 380px; max-width: calc(100vw - 16px); max-height: min(70vh, 560px);
+  display: flex; flex-direction: column; overflow: hidden;
+  font: 13px/1.45 var(--st-font); color: var(--st-text);
+  background: var(--st-surface); border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--st-text) 12%, transparent);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.32), 0 2px 8px rgba(0, 0, 0, 0.18);
+  pointer-events: auto;
+}
+#studio-root[data-theme="brand"] .st-ai-pop { background: #000; border-color: rgba(255, 255, 255, 0.14); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(102, 126, 234, 0.25); }
+.st-ai-head { display: flex; align-items: center; gap: 8px; padding: 10px 10px 6px 12px; }
+.st-ai-mark { width: 22px; height: 22px; flex: none; color: var(--st-accent); }
+.st-ai-mark svg { width: 100%; height: 100%; }
+.st-ai-input {
+  flex: 1; min-width: 0; height: 34px; padding: 0 12px; border-radius: 10px; outline: none;
+  font: inherit; color: var(--st-text); background: var(--st-field);
+  border: 1px solid color-mix(in srgb, var(--st-text) 14%, transparent);
+}
+.st-ai-input:focus { border-color: var(--st-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--st-accent) 30%, transparent); }
+.st-ai-x { width: 28px; height: 28px; flex: none; padding: 5px; border: 0; border-radius: 8px; background: transparent; color: var(--st-text-dim); cursor: pointer; }
+.st-ai-x:hover { background: color-mix(in srgb, var(--st-text) 10%, transparent); }
+.st-ai-x svg { width: 100%; height: 100%; }
+.st-ai-scope { padding: 0 14px 8px; font-size: 12px; color: var(--st-text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-ai-scope b { color: var(--st-text-dim); font-weight: 500; }
+.st-ai-body { overflow: auto; padding: 2px 10px 10px; }
+.st-ai-group + .st-ai-group { margin-top: 8px; }
+.st-ai-gt { padding: 2px 4px 4px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--st-text-faint); }
+.st-ai-items { display: flex; flex-wrap: wrap; gap: 6px; }
+.st-ai-item {
+  padding: 6px 11px; border-radius: 999px; cursor: pointer; font: inherit; font-size: 12.5px; color: var(--st-text);
+  background: color-mix(in srgb, var(--st-text) 7%, transparent); border: 1px solid color-mix(in srgb, var(--st-text) 10%, transparent);
+}
+.st-ai-item:hover, .st-ai-item:focus-visible { outline: none; color: var(--st-on-accent); border-color: transparent; background: linear-gradient(135deg, var(--st-accent) 0%, var(--st-accent-2) 100%); }
+.st-ai-custom { display: flex; align-items: center; gap: 8px; width: 100%; border-radius: 10px; text-align: left; }
+.st-ai-custom svg { width: 16px; height: 16px; flex: none; }
+.st-ai-foot { padding: 7px 14px 9px; font-size: 11px; color: var(--st-text-faint); border-top: 1px solid color-mix(in srgb, var(--st-text) 8%, transparent); }
+.st-ai-rt { display: flex; flex-direction: column; gap: 1px; padding: 2px 4px 8px; font-weight: 600; }
+.st-ai-rt small { font-weight: 400; font-size: 11px; color: var(--st-text-faint); }
+.st-ai-wait { display: flex; align-items: center; gap: 10px; padding: 4px; color: var(--st-text-dim); }
+.st-ai-wait .st-typing { padding: 6px 0; background: none !important; border: 0 !important; }
+.st-ai-wait .st-mini { margin-left: auto; }
+.st-ai-out {
+  max-height: 300px; overflow: auto; padding: 10px 12px; border-radius: 10px; user-select: text;
+  background: var(--st-field); border: 1px solid color-mix(in srgb, var(--st-text) 10%, transparent);
+}
+.st-ai-out > :first-child { margin-top: 0; }
+.st-ai-out > :last-child { margin-bottom: 0; }
+.st-ai-out p, .st-ai-out ul, .st-ai-out ol { margin: 0 0 8px; }
+.st-ai-out ul, .st-ai-out ol { padding-left: 20px; }
+.st-ai-out h2, .st-ai-out h3, .st-ai-out h4 { margin: 10px 0 6px; font-size: 14px; }
+.st-ai-out table { border-collapse: collapse; margin: 0 0 8px; font-size: 12px; }
+.st-ai-out th, .st-ai-out td { border: 1px solid color-mix(in srgb, var(--st-text) 25%, transparent); padding: 3px 6px; text-align: left; }
+.st-ai-err { margin: 0 4px 8px; color: var(--st-danger); }
+.st-ai-acts { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 10px; }
+#studio-root[data-theme] .st-ai-acts .st-mini.primary { color: #fff; border-color: transparent; background: linear-gradient(135deg, var(--st-accent) 0%, var(--st-accent-2) 100%); }

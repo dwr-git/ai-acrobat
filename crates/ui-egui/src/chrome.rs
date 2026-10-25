@@ -280,6 +280,23 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                         });
                         ui.add_space(window_controls::SIDE_GAP - 4.0);
                     }
+                    // AI-Acrobat on the web: back to the site, at the far right.
+                    if app.host_home.is_some() {
+                        let t = Tokens::get(ui.ctx());
+                        let (r, resp) = ui.allocate_exact_size(egui::vec2(button + 6.0, button), egui::Sense::click());
+                        let resp = theme::hand(resp).on_hover_text(tl!("To the site"));
+                        resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, tl!("To the site")));
+                        ui.painter().rect_filled(r, f32::from(t.radius) + 1.0, if resp.hovered() { t.accent_text } else { t.accent });
+                        // Dark text on the dark theme's light blue; white on the others' deeper accents.
+                        let ink = if t.dark() && !theme::brand_on() { Color32::from_rgb(0x0B, 0x1B, 0x33) } else { Color32::WHITE };
+                        icons::paint(ui, r, "house", (button * 0.55).round(), ink);
+                        if resp.clicked()
+                            && let Some(go) = app.host_home.as_ref()
+                        {
+                            go();
+                        }
+                        ui.add_space(6.0);
+                    }
                     let (icon, label) = match app.theme_preference {
                         ThemePreference::System => ("monitor", tl!("Use system setting")),
                         ThemePreference::Light => ("sun", tl!("Light gray")),

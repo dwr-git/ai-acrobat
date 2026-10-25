@@ -76,6 +76,8 @@ fn main() {
                             Ok(()) => {
                                 app.host_save = Some(bridge::save_fn());
                                 app.host_dirty = Some(bridge::dirty_fn());
+                                app.host_home = Some(Box::new(go_home));
+                                app.host_ai = Some(bridge::ai_fn());
                             }
                             Err(e) => eframe::web_sys::console::error_1(&e),
                         }
@@ -299,4 +301,22 @@ mod host {
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
     eprintln!("pdfcraft-web (AI-Acrobat) targets wasm32: run `trunk serve` or `trunk build --release` in apps/pdfcraft-web");
+}
+
+/// Leave the editor for the site it lives on: `window.STUDIO_CONFIG.homeUrl` (studio/config.js,
+/// made absolute by the panel), one level up without it.
+#[cfg(target_arch = "wasm32")]
+fn go_home() {
+    use eframe::wasm_bindgen::JsValue;
+    let Some(window) = eframe::web_sys::window() else { return };
+    let url = js_sys::Reflect::get(&window, &JsValue::from_str("STUDIO_CONFIG"))
+        .ok()
+        .filter(|c| c.is_object())
+        .and_then(|c| js_sys::Reflect::get(&c, &JsValue::from_str("homeUrl")).ok())
+        .and_then(|u| u.as_string())
+        .filter(|u| !u.trim().is_empty())
+        .unwrap_or_else(|| "../".to_string());
+    if let Err(e) = window.location().set_href(&url) {
+        eframe::web_sys::console::error_1(&e);
+    }
 }
