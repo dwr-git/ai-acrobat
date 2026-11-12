@@ -545,10 +545,10 @@ pub type OsEventsFn = Box<dyn FnMut() -> Vec<OsEvent>>;
 /// for saves; without it the browser downloads the file.
 pub type HostSaveFn = Box<dyn Fn(&str, &[u8], bool) -> Result<(), String>>;
 
-/// Leaves the editor for the site the web page lives on (AI-Acrobat's house at the top right).
+/// Leaves the editor for the site the web page lives on (AI PDF's house at the top right).
 pub type HostHomeFn = Box<dyn Fn()>;
 
-/// Opens the web page's AI menu for the selected words at this point of the canvas (AI-Acrobat):
+/// Opens the web page's AI menu for the selected words at this point of the canvas (AI PDF):
 /// (x, y, the selected text).
 pub type HostAiFn = Box<dyn Fn(f32, f32, &str)>;
 
@@ -2304,9 +2304,9 @@ impl PdfCraftApp {
             Err(e) => {
                 use pdfcraft_engine::links::BlockedLink;
                 let template = if matches!(e, BlockedLink::MailFile | BlockedLink::MailEncodedWord) {
-                    "{who} in this document tried to open an address AI-Acrobat won't open: {e}."
+                    "{who} in this document tried to open an address AI PDF won't open: {e}."
                 } else {
-                    "{who} in this document tried to open an address AI-Acrobat won't open: {e}. Only web (http, https) and email (mailto) links open from documents."
+                    "{who} in this document tried to open an address AI PDF won't open: {e}. Only web (http, https) and email (mailto) links open from documents."
                 };
                 self.notify_fmt(template, &[("who", tl!(origin.noun())), ("e", &e.to_string())]);
             }
@@ -3625,7 +3625,7 @@ impl eframe::App for PdfCraftApp {
             .active
             .and_then(|i| crate::canvas::tab_label(self, i))
             .or_else(|| self.combine_showing().then(|| tl!("Combine files").to_owned()))
-            .map_or_else(|| "AI-Acrobat".to_owned(), |name| format!("{name} — AI-Acrobat"));
+            .map_or_else(|| "AI PDF".to_owned(), |name| format!("{name} — AI PDF"));
         if title != self.window_title {
             ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
             self.window_title = title;

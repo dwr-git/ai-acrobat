@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Russian names for the assistant's command search.
 
-Reads AI-Acrobat's Russian interface catalog (crates/ui-egui/src/i18n/ru.tsv) and writes studio/ru-labels.json:
+Reads AI PDF's Russian interface catalog (crates/ui-egui/src/i18n/ru.tsv) and writes studio/ru-labels.json:
 
     {"text": {"Line Spacing": "Междустрочный интервал", ...}, "id": {"para.single": "…", ...}}
 

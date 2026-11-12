@@ -62,7 +62,10 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                     });
                     ui.add_space(window_controls::SIDE_GAP - 4.0);
                 }
-                if icons::button(ui, "house", button, app.active.is_none() && !app.combine_showing(), tl!("Home")).clicked() {
+                // On the web the house at the right end leads back to the site, so the start screen's
+                // button here shows a grid: one house per bar.
+                let start_icon = if app.host_home.is_some() { "layout-grid" } else { "house" };
+                if icons::button(ui, start_icon, button, app.active.is_none() && !app.combine_showing(), tl!("Home")).clicked() {
                     app.active = None;
                     app.combine_tab.focused = false;
                 }
@@ -280,7 +283,7 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                         });
                         ui.add_space(window_controls::SIDE_GAP - 4.0);
                     }
-                    // AI-Acrobat on the web: back to the site, at the far right.
+                    // AI PDF on the web: back to the site, at the far right.
                     if app.host_home.is_some() {
                         let t = Tokens::get(ui.ctx());
                         let (r, resp) = ui.allocate_exact_size(egui::vec2(button + 6.0, button), egui::Sense::click());

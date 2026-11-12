@@ -1,4 +1,4 @@
-/* AI-Acrobat — помощник и файлы на сервере внутри редактора PDF.
+/* AI PDF — помощник и файлы на сервере внутри редактора PDF.
  *
  * Панель в браузере разговаривает с моделью через api/assistant.php, а действия
  * выполняет в самом редакторе через window.aiacrobat (apps/pdfcraft-web/src/bridge.rs):
@@ -704,7 +704,7 @@
     try {
       r = await post(payload);
     } catch (e) {
-      console.warn('AI-Acrobat: запрос к помощнику оборвался', e);
+      console.warn('AI PDF: запрос к помощнику оборвался', e);
       if (!hasImages(payload)) throw new Error(await explainNoAnswer(took()));
       try { r = await post(withoutImages(payload)); } catch { throw new Error(await explainNoAnswer(took())); }
       tellImagesBlocked();

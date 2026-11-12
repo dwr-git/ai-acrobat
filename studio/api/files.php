@@ -1,5 +1,5 @@
 <?php
-// studio/api/files.php — файлы AI-Acrobat на вашем сервере. У каждого пользователя своя папка.
+// studio/api/files.php — файлы AI PDF на вашем сервере. У каждого пользователя своя папка.
 //
 //   GET  files.php                          → {ok, user, files: [{name, size, modified}], limit}
 //   GET  files.php?action=load&name=…       → сам документ (.pdf), application/octet-stream

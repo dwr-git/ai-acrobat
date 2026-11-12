@@ -21,7 +21,7 @@ pub enum ThemePreference {
     System,
     Light,
     Dark,
-    /// AI-Acrobat's Brand theme: dark navy panels, the brand's blue-violet accent, solid black
+    /// AI PDF's Brand theme: dark navy panels, the brand's blue-violet accent, solid black
     /// menus and windows with a strong shadow, and the brand backdrop behind the pages. It draws
     /// as Dark ([`ThemeKind::Dark`]) with [`Tokens::brand`].
     Brand,

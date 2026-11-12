@@ -1,7 +1,7 @@
 //! `window.aiacrobat`: the control channel for the page, as promises.
 //!
 //! The same JSON methods as the desktop control server (`crates/ui-egui/src/control.rs`), so the
-//! assistant panel next to the editor (`studio/`) drives AI-Acrobat the way the CLI does:
+//! assistant panel next to the editor (`studio/`) drives AI PDF the way the CLI does:
 //!
 //! ```js
 //! await aiacrobat.request("ui.state")                  // a control method → its result
@@ -82,7 +82,7 @@ fn poll_replies() {
 fn request(method: &str, params: Value) -> js_sys::Promise {
     js_sys::Promise::new(&mut |resolve, reject| {
         let Some(client) = CLIENT.with(|c| c.borrow().clone()) else {
-            let _ = reject.call1(&JsValue::NULL, &js_sys::Error::new("AI-Acrobat is not running yet"));
+            let _ = reject.call1(&JsValue::NULL, &js_sys::Error::new("AI PDF is not running yet"));
             return;
         };
         if WAITING.with(|w| w.borrow().len()) >= MAX_WAITING {
@@ -109,7 +109,7 @@ fn open(name: String, bytes: JsValue) -> Result<(), JsValue> {
     let name = if name.trim().is_empty() { "document.pdf".to_string() } else { name.chars().take(255).collect() };
     INBOX.with(|i| {
         let guard = i.borrow();
-        let Some((inbox, ctx)) = guard.as_ref() else { return Err(js_sys::Error::new("AI-Acrobat is not running yet").into()) };
+        let Some((inbox, ctx)) = guard.as_ref() else { return Err(js_sys::Error::new("AI PDF is not running yet").into()) };
         if let Ok(mut q) = inbox.lock() {
             q.push((name, array.to_vec()));
         }
@@ -222,7 +222,7 @@ pub fn install() -> Result<(), JsValue> {
         "wantsKeyboard",
         Closure::<dyn Fn() -> bool>::new(|| INBOX.with(|i| i.borrow().as_ref().is_some_and(|(_, ctx)| ctx.text_edit_focused()))).into_js_value(),
     )?;
-    set(&obj, "product", JsValue::from_str("AI-Acrobat"))?;
+    set(&obj, "product", JsValue::from_str("AI PDF"))?;
     let w = web_sys::window().ok_or("no window")?;
     js_sys::Reflect::set(&w, &"aiacrobat".into(), &obj)?;
     // Settle answered requests 30 times a second; a cheap check when nothing waits.

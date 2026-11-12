@@ -129,7 +129,7 @@ pub(crate) fn print_document_html(sheets: &[(f64, f64)], urls: &[String]) -> Str
         }
     }
     format!(
-        "<!doctype html><html><head><meta charset=\"utf-8\"><title>AI-Acrobat</title><style>{css}</style></head><body>{html_sheets}</body></html>"
+        "<!doctype html><html><head><meta charset=\"utf-8\"><title>AI PDF</title><style>{css}</style></head><body>{html_sheets}</body></html>"
     )
 }
 

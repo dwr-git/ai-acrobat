@@ -509,12 +509,12 @@ pub fn progress_notice(app: &PdfCraftApp, ctx: &egui::Context) -> bool {
     cancel
 }
 
-/// AI-Acrobat's mark, drawn in code, `size` points square: the thick rounded frame the AI- apps'
+/// AI PDF's mark, drawn in code, `size` points square: the thick rounded frame the AI- apps'
 /// icons share, round a page with a folded corner and three lines of text.
 pub fn app_mark(ui: &mut egui::Ui, size: f32) -> Response {
     let (rect, response) = ui.allocate_exact_size(vec2(size, size), Sense::hover());
     paint_app_mark(ui.painter(), rect, Tokens::get(ui.ctx()).text, Tokens::get(ui.ctx()).panel);
-    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Image, true, "AI-Acrobat"));
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Image, true, "AI PDF"));
     response
 }
 

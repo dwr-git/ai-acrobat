@@ -4547,7 +4547,7 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
 
 #[derive(Clone, Copy)]
 enum SelectionAction {
-    /// AI-Acrobat on the web: the page's AI menu for the selected words.
+    /// AI PDF on the web: the page's AI menu for the selected words.
     Ai,
     Note,
     Markup(comments::CommentTool),
@@ -4738,7 +4738,7 @@ fn run_button(app: &mut PdfCraftApp, index: usize, name: &str, action: pdfcraft_
         }
         B::Alert(m) => app.notify(m),
         B::Submit(url) => app.notify_fmt(
-            "{name} submits the form to {url}; AI-Acrobat doesn't send form data. Save the document to keep your entries.",
+            "{name} submits the form to {url}; AI PDF doesn't send form data. Save the document to keep your entries.",
             &[("name", name), ("url", &url)],
         ),
         B::ImportIcon => app.choose_field_image(name),
@@ -5012,7 +5012,7 @@ fn notices(
     } else if info.xfa == Some(pdfcraft_render::Xfa::Dynamic) {
         Some((
             "triangle-alert",
-            tl!("This is a dynamic XFA form, which AI-Acrobat can't display yet. What you see is the file's placeholder page.").to_string(),
+            tl!("This is a dynamic XFA form, which AI PDF can't display yet. What you see is the file's placeholder page.").to_string(),
             false,
         ))
     } else if info.xfa == Some(pdfcraft_render::Xfa::Static) {

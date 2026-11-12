@@ -335,8 +335,9 @@ Not in this repository and never downloaded by it: compiled in only when the bui
 |---|---|---|---|---|---|---|---|
 | `craft-fonts` | `CRAFT_FONTS_DIR` | Japanese fonts: BIZ UDPGothic (Regular, Bold), Shippori Mincho, BIZ UDMincho; Arabic font: Noto Sans Arabic | The BIZ UDGothic and BIZ UDMincho Project Authors (Morisawa Inc.), The Shippori Mincho Project Authors (FONTDASU), The Noto Project Authors (Noto Sans Arabic) | OFL-1.1 | https://github.com/storytold/craft-fonts (pinned by commit in .github/workflows/release.yml) | https://github.com/storytold/craft-fonts/blob/main/ATTRIBUTION.md | Japanese fallback in the interface (BIZ UDPGothic first) and Japanese glyphs in edited PDF text (Shippori Mincho); Arabic interface text, file names and document titles (Noto Sans Arabic); the web build embeds only BIZ UDPGothic Regular and Noto Sans Arabic. The checkout also holds Noto Sans CJK SC, which crates/fonts/build.rs leaves out for size |
 
-## AI-Acrobat additions
+## AI PDF additions
 
 | Path | Author | Source | Licence | Notes |
 |---|---|---|---|---|
-| `studio/web/favicon.png`, `studio/web/apple-touch-icon.png` | AI-Acrobat contributors | drawn for AI-Acrobat | MIT OR Apache-2.0 | A page with a folded corner in a frame |
+| `studio/web/favicon.png`, `studio/web/favicon-16.png`, `studio/web/favicon.ico` | Dewiar (project owner) | Dewiar favicon — owner's own artwork, provided by the project owner for use in these apps | provided by the project owner for use in these apps | Browser-tab icon, the same in every AI app |
+| `studio/web/apple-touch-icon.png` | Dewiar | original work made for this project (icon «pdf», 512 px resized to 180 px) | MIT OR Apache-2.0 | Home-screen icon of AI PDF |

@@ -1,4 +1,4 @@
-//! AI-Acrobat in the browser. Build: `cd apps/pdfcraft-web && trunk build --release`
+//! AI PDF in the browser. Build: `cd apps/pdfcraft-web && trunk build --release`
 //! (trunk generates the JS loader). The packaged site (`studio/build/package.sh`) starts it from
 //! compressed parts and puts the assistant panel and the user's server files next to it; the
 //! panel reaches the app through `window.aiacrobat` ([`bridge`]).
@@ -31,7 +31,7 @@ fn main() {
                     // "printcraft": settings saved under the app's former name, PrintCraft.
                     match cc.storage.and_then(|s| s.get_string("pdfcraft").or_else(|| s.get_string("printcraft"))) {
                         Some(json) => app.restore(&json),
-                        // AI-Acrobat's first start: the Russian interface and the Brand theme
+                        // AI PDF's first start: the Russian interface and the Brand theme
                         // (both stay changeable in Preferences and the theme menu).
                         None => {
                             let _ = app.set_option("language", "ru");
@@ -52,7 +52,7 @@ fn main() {
                                     }
                                 }
                                 Err(e) => {
-                                    eframe::web_sys::console::error_1(&format!("AI-Acrobat: could not fetch {url}: {e}").into());
+                                    eframe::web_sys::console::error_1(&format!("AI PDF: could not fetch {url}: {e}").into());
                                     // Shown in the app too, not only in the console (#173).
                                     if let Ok(mut q) = failed.lock() {
                                         q.push((name, e));
@@ -98,7 +98,7 @@ fn main() {
                         bridge.post_ready();
                     } else if query_param("host").as_deref() == Some("parent") {
                         eframe::web_sys::console::warn_1(
-                            &"AI-Acrobat: ?host=parent needs a framing page on the same origin; saves download instead".into(),
+                            &"AI PDF: ?host=parent needs a framing page on the same origin; saves download instead".into(),
                         );
                     }
                     Ok(Box::new(app))
@@ -110,7 +110,7 @@ fn main() {
             match &started {
                 Ok(()) => loading.remove(),
                 Err(e) => loading.set_inner_html(&format!(
-                    "<p>AI-Acrobat не запустился: {}</p><p>Нужен браузер с WebGL2: свежий Chrome, Edge, Firefox или Safari.</p>",
+                    "<p>AI PDF не запустился: {}</p><p>Нужен браузер с WebGL2: свежий Chrome, Edge, Firefox или Safari.</p>",
                     html_escape(&e.as_string().unwrap_or_else(|| format!("{e:?}")))
                 )),
             }
@@ -300,7 +300,7 @@ mod host {
 
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
-    eprintln!("pdfcraft-web (AI-Acrobat) targets wasm32: run `trunk serve` or `trunk build --release` in apps/pdfcraft-web");
+    eprintln!("pdfcraft-web (AI PDF) targets wasm32: run `trunk serve` or `trunk build --release` in apps/pdfcraft-web");
 }
 
 /// Leave the editor for the site it lives on: `window.STUDIO_CONFIG.homeUrl` (studio/config.js,

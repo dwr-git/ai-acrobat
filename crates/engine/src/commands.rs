@@ -379,11 +379,11 @@ pub const COMMANDS: &[CommandSpec] = &[
     c("page.number", "Number pages…", PAGES, None, Assembly, "hash"),
     c("help.shortcuts", "Keyboard shortcuts", HELP, None, Nothing, "circle-help"),
     c("help.discord", "Join the ArtCraft Discord", None, None, Nothing, "messages-square"),
-    c("help.app_page", "AI-Acrobat web page", None, None, Nothing, "globe"),
-    c("help.github", "AI-Acrobat on GitHub", None, None, Nothing, "code-xml"),
+    c("help.app_page", "AI PDF web page", None, None, Nothing, "globe"),
+    c("help.github", "AI PDF on GitHub", None, None, Nothing, "code-xml"),
     c("help.website", "ArtCraft website", None, None, Nothing, "external-link"),
     c("help.check_updates", "Check for updates…", None, None, Nothing, "cloud"),
-    c("help.about", "About AI-Acrobat", HELP, None, Nothing, "info"),
+    c("help.about", "About AI PDF", HELP, None, Nothing, "info"),
 ];
 
 pub fn command(id: &str) -> Option<&'static CommandSpec> {
