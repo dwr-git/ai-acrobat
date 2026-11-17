@@ -17,7 +17,7 @@
     labels: 'studio/ru-labels.json',
     defaultTheme: 'brand',
     autosaveSeconds: 0,        // PDF сохраняется на сервер по Ctrl+S; автосохранение — по желанию (секунды)
-    maxSteps: 40,              // шагов подряд в «Сделай» по умолчанию (в панели: шестерёнка → 10…без ограничений)
+    maxSteps: 30,              // шагов подряд в «Сделай» по умолчанию (в панели: шестерёнка → 10…без ограничений)
     screenshotMax: 1400,
     openOnStart: false,
     filesOnStart: true,
@@ -410,7 +410,7 @@
   // ------------------------------------------------------------------ настройки помощника
   // Сколько шагов подряд делать в «Сделай» (потом — кнопка «Продолжить») и спрашивать ли перед
   // удалением, закрытием, сбросом. Хранятся в этом браузере; меню — «Настройки» внизу панели.
-  const STEP_CHOICES = [10, 25, 40, 100, 0]; // 0 — без ограничений
+  const STEP_CHOICES = [10, 30, 50, 100, 0]; // 0 — без ограничений
   const stepSetting = () => { const v = Number(store.get('agentSteps', CFG.maxSteps)); return Number.isFinite(v) && v >= 0 ? v : CFG.maxSteps; };
   const agentSteps = () => (stepSetting() > 0 ? stepSetting() : Infinity);
   const askBeforeRisky = () => store.get('agentConfirm', true) !== false;
